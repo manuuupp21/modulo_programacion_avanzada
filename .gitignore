@@ -1,3 +1,6 @@
 AdoptAPI/__pycache__/main.cpython-313.pyc
 AdoptAPI/__pycache__/models.cpython-313.pyc
+AdoptAPI/__pycache__/schemas.cpython-313.pyc
+AdoptAPI/__pycache__/crud.cpython-313.pyc
+AdoptAPI/__pycache__/database.cpython-313.pyc
 .DS_Store

@@ -1,29 +1,31 @@
-from pydantic import BaseModel, Field
-from enum import Enum
-from datetime import datetime
+from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date
+import datetime
 
-class Pet(BaseModel):
-    id: int
-    name: str = Field(..., min_length = 1, max_length = 50)
-    age: int = Field(..., ge=0)
-    type: str = Field(..., min_length = 1, max_length = 50)
-    adopted: bool = Field(default=False)
+class Base(DeclarativeBase):
+    pass
 
-class Person(BaseModel):
-    id: int
-    name: str = Field(..., min_length = 1, max_length = 100)
-    email: str = Field(..., pattern=r'^\S+@\S+\.\S+$')
-    phone: str = Field(..., min_length = 7, max_length = 15)
+class Pet(Base):
+    __tablename__ = 'pets'
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    age = Column(Integer)
+    type = Column(String)
+    adopted = Column(Boolean, default=False)
 
-# --- nueva clase para solicitudes de adopción ---
-class RequestStatus(str, Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
+class Person(Base):
+    __tablename__ = 'persons'
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    email = Column(String)
+    phone = Column(String)
 
-class AdoptionRequest(BaseModel):
-    id: int
-    person_id: int
-    pet_id: int
-    status: RequestStatus = Field(default=RequestStatus.PENDING)
-    date: datetime = Field(default_factory=datetime.now)
+class AdoptionRequest(Base):
+    __tablename__ = 'adoption_requests'
+    id = Column(Integer, primary_key=True)
+    person = relationship("Person")
+    pet = relationship("Pet")
+    person_id = Column(Integer, ForeignKey('persons.id'), nullable=True)
+    pet_id = Column(Integer, ForeignKey('pets.id'), nullable=True)
+    status = Column(String)
+    date = Column(Date, default=datetime.date.today)

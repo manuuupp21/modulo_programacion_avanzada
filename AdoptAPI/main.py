@@ -1,7 +1,10 @@
 
 import logging
-from fastapi import FastAPI, HTTPException
-from models import Pet, Person, AdoptionRequest, RequestStatus
+from fastapi import FastAPI, HTTPException, Depends
+from schemas import Pet, Person, AdoptionRequest, RequestStatus
+from database import SessionLocal, engine
+from models import Base
+import crud
 
 # Configuración de logging
 logger = logging.getLogger("AdoptAPI")
@@ -17,45 +20,44 @@ logger.addHandler(console_handler)
 app = FastAPI(title="AdoptAPI")
 logger.info("AdoptAPI initialized")
 
-# Datos en memoria (simulación de base de datos)
-pets = []
-persons = []
+Base.metadata.create_all(bind=engine)
+logger.debug("Database tables created")
 
-# ======================
-# ENDPOINTS DE PRUEBA
-# ======================
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        
 @app.get("/pets")
-def get_pets(pets):
+def get_pets(db = Depends(get_db)):
     logger.debug("GET /pets solicitado")
-    return pets
+    return crud.get_pets(db)
 
 @app.get("/persons")
-def get_persons(persons):
+def get_persons(db = Depends(get_db)):
     logger.debug("GET /persons solicitado")
-    return persons
+    return crud.get_persons(db)
 
 @app.post("/pets")
-def add_pet(pet: Pet, pets):
-    if any(p.id == pet.id for p in pets):
+def add_pet(pet: Pet, db = Depends(get_db)):
+    if any(p.id == pet.id for p in crud.get_pets(db)):
         logger.warning("Intento de añadir mascota con ID duplicado: %d", pet.id)
-        raise HTTPException(status_code=400, detail="Pet ID already exists")
-    pets.append(pet)
-    logger.info("Nueva mascota añadida: %s", pet.name)
-    return {"message": "Pet added successfully", "pet": pet}
+        raise HTTPException(status_code=400, detail="ID mascota ya existe")
+    return crud.add_pet(db, pet)
 
 @app.post("/persons")
-def add_person(person: Person, persons):
-    if any(p.id == person.id for p in persons):
+def add_person(person: Person, db = Depends(get_db)):
+    if any(p.id == person.id for p in crud.get_persons(db)):
         logger.warning("Intento de añadir persona con ID duplicado: %d", person.id)
-        raise HTTPException(status_code=400, detail="Person ID already exists")
-    persons.append(person)
-    logger.info("Nueva persona añadida: %s", person.name)
-    return {"message": "Person added successfully", "person": person}
+        raise HTTPException(status_code=400, detail="ID persona ya existe")
+    return crud.add_person(db, person)
 
-adoptions = []  # lista global de solicitudes
-
-@app.post("/adoptions/")
-def adopt_pet(request: AdoptionRequest, persons, pets):
+@app.post("/adoptions")
+def adopt_pet(request: AdoptionRequest, db = Depends(get_db)):
+    persons = crud.get_persons(db)
+    pets = crud.get_pets(db)
     logger.debug(f"Solicitud de adopción recibida: persona={request.person_id}, mascota={request.pet_id}")
 
     # 1. Verificar que existan persona y mascota
@@ -74,7 +76,6 @@ def adopt_pet(request: AdoptionRequest, persons, pets):
     # 3. Crear la solicitud
     pet.adopted = True
     request.status = RequestStatus.APPROVED
-    adoptions.append(request)
 
     logger.info(f"Adopción aprobada: {person.name} ha adoptado a {pet.name}")
     return {
