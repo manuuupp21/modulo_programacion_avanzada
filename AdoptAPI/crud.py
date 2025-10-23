@@ -6,14 +6,14 @@ import logging
 logger = logging.getLogger("AdoptAPI")
 
 def get_pets(db: Session):
-    logger.debug("Obteniendo todas las mascotas de la base de datos ordenadas por ID")
+    logger.debug("Obteniendo todas las mascotas de la base de datos")
     pets = db.execute(select(models.Pet).order_by(
         models.Pet.id.desc())).scalars().all()
     logger.info("Se han obtenido %d mascotas", len(pets))
     return pets
 
 def get_persons(db: Session):
-    logger.debug("Obteniendo todas las personas de la base de datos ordenadas por ID")
+    logger.debug("Obteniendo todas las personas de la base de datos")
     persons = db.execute(select(models.Person).order_by(
         models.Person.id.desc())).scalars().all()
     logger.info("Se han obtenido %d personas", len(persons))
@@ -45,3 +45,22 @@ def add_adoption_request(db: Session, request: schemas.AdoptionRequest):
     db.refresh(db_request)
     logger.info("Solicitud de adopción añadida con éxito: ID %d", db_request.id)
     return db_request
+
+def get_all_adoption_requests(db: Session):
+    logger.debug("Obteniendo todas las solicitudes de adopción de la base de datos")
+    requests = db.execute(select(models.AdoptionRequest).order_by(
+        models.AdoptionRequest.id.desc())).scalars().all()
+    logger.info("Se han obtenido %d solicitudes de adopción", len(requests))
+    return requests
+
+def delete_adoption_request(db: Session, pet_id: int):
+    logger.debug("Eliminando solicitud de adopción para la mascota con ID %d", pet_id)
+    request = db.execute(select(models.AdoptionRequest).filter(
+        models.AdoptionRequest.pet_id == pet_id)).scalar()
+    if not request:
+        logger.warning("Solicitud de adopción no encontrada: ID %d", pet_id)
+        return None
+    db.delete(request)
+    db.commit()
+    logger.info(f"Adopción revocada: La mascota {request.pet.name} ya no está adoptada")
+    return request

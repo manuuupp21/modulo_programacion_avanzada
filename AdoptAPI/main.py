@@ -17,6 +17,18 @@ console_format = logging.Formatter('[%(asctime)s] %(levelname)s - %(message)s')
 console_handler.setFormatter(console_format)
 logger.addHandler(console_handler)
 
+# Handler para archivo debug.log (DEBUG+)
+debug_file_handler = logging.FileHandler("debug.log", encoding="utf-8")
+debug_file_handler.setLevel(logging.DEBUG)
+debug_file_handler.setFormatter(console_format)
+logger.addHandler(debug_file_handler)
+
+# Handler para archivo warning.log (WARNING+)
+warning_file_handler = logging.FileHandler("warning.log", encoding="utf-8")
+warning_file_handler.setLevel(logging.WARNING)
+warning_file_handler.setFormatter(console_format)
+logger.addHandler(warning_file_handler)
+
 app = FastAPI(title="AdoptAPI")
 logger.info("AdoptAPI initialized")
 
@@ -76,9 +88,39 @@ def adopt_pet(request: AdoptionRequest, db = Depends(get_db)):
     # 3. Crear la solicitud
     pet.adopted = True
     request.status = RequestStatus.APPROVED
+    crud.add_adoption_request(db, request)
 
     logger.info(f"Adopción aprobada: {person.name} ha adoptado a {pet.name}")
     return {
-        "message": f"{person.name} ha adoptado a {pet.name}",
-        "adoption_request": request
+        'message': f"La mascota {pet.name} ha sido adoptada por {person.name} exitosamente.",
+        'adoption_request': request
     }
+
+# Endpoint para listar solicitudes de adopción
+@app.get("/adoptions")
+def get_adoption_requests(db = Depends(get_db)):
+    logger.debug("GET /adoptions solicitado")
+    return crud.get_all_adoption_requests(db)
+
+# Endpoint para eliminar la adopción de una mascota (útil para pruebas)
+@app.delete("/adoptions/{pet_id}")
+def revoke_adoption(pet_id: int, db = Depends(get_db)):
+    pets = crud.get_pets(db)
+    # verificamos que exista la solicitud de adopción
+    requests = crud.get_all_adoption_requests(db)
+    request = next((r for r in requests if r.pet_id == pet_id), None)
+    if not request:
+        logger.warning(f"Intento de revocar adopción inexistente para mascota ID: {pet_id}")
+        raise HTTPException(status_code=404, detail="Solicitud de adopción no encontrada")
+    # verificamos que la mascota exista y esté adoptada
+    pet = next((p for p in pets if p.id == pet_id), None)
+    if not pet:
+        logger.warning(f"Intento de revocar adopción de mascota inexistente: ID {pet_id}")
+        raise HTTPException(status_code=404, detail="Mascota no encontrada")
+    if not pet.adopted:
+        logger.warning(f"Intento de revocar adopción de mascota no adoptada: {pet.name}")
+        raise HTTPException(status_code=400, detail="Mascota no está adoptada")
+
+    pet.adopted = False
+    request.status = RequestStatus.REJECTED
+    return crud.delete_adoption_request(db, pet_id)
